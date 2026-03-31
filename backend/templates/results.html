@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>FareFusion Results</title>
+
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/styles.css') }}"
+    />
+
+    <link
+      href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;500;600&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+
+  <body>
+    <header>
+      <h1 id="logo">FareFusion</h1>
+      <div class="theme-toggle" id="themeToggle">🌙</div>
+    </header>
+
+    <main class="results-container">
+      <h2 class="results-title">Ride Comparison</h2>
+
+      <div class="route-info">
+        <p><b>Source:</b> {{ source }}</p>
+        <p><b>Destination:</b> {{ destination }}</p>
+        <p><b>Distance:</b> {{ distance }} km</p>
+      </div>
+
+      <h3 class="section-title">Available Rides</h3>
+
+      <div class="ride-results">
+        {% for ride in rides %}
+
+        <div
+          class="ride-result-card {% if ride.name == best_ride.name %}best-ride{% endif %}"
+        >
+          <p class="ride-name">{{ ride.name }}</p>
+          <p>Fare: ₹{{ ride.fare }}</p>
+          <p>ETA: {{ ride.eta }} min</p>
+
+          {% if ride.name == best_ride.name %}
+          <p class="best-label">Best Ride</p>
+          {% endif %}
+        </div>
+
+        {% endfor %}
+      </div>
+
+      <a href="/" class="back-btn">Search Again</a>
+    </main>
+
+    <footer class="footer">© 2026 FareFusion. All Rights Reserved.</footer>
+    <script src="{{ url_for('static', filename='js/index.js') }}"></script>
+  </body>
+</html>
