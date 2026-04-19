@@ -71,6 +71,7 @@ main {
   100% {
     opacity: 1;
   }
+
   50% {
     opacity: 0;
   }
@@ -114,7 +115,7 @@ input:focus {
   width: 60%;
   height: 3px;
   margin: 6px auto 0;
-  background: linear-gradient(90deg, #00bfff, #00ff88);
+  background: linear-gradient(90deg, #00bfff, #152264);
   border-radius: 2px;
 }
 
@@ -300,4 +301,135 @@ body.light-mode .footer {
 
 .back-btn:hover {
   transform: scale(1.05);
+}
+
+/* Header layout improvement */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+/* Logout link (displays email + icon) */
+.logout-link {
+  text-decoration: none;
+  padding: 8px 12px;
+  background: transparent;
+  color: #00bfff;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: 0.3s ease;
+}
+
+.logout-link:hover {
+  background: rgba(0, 191, 255, 0.1);
+  color: #0080ff;
+}
+
+body.light-mode .logout-link {
+  color: #0080ff;
+}
+
+body.light-mode .logout-link:hover {
+  background: rgba(0, 128, 255, 0.1);
+}
+
+/* Autocomplete styles */
+.autocomplete-container {
+  position: relative;
+  width: 320px;
+  margin: 10px 0;
+}
+
+.autocomplete-container input {
+  margin: 0;
+  width: 100%;
+}
+
+.autocomplete-list {
+  position: absolute;
+  top: calc(100% - 4px);
+  left: 0;
+  width: 100%;
+  background-color: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  border-radius: 0 0 8px 8px;
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 1000;
+  list-style: none;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.4);
+  display: none;
+}
+
+.autocomplete-list li {
+  padding: 10px 15px;
+  cursor: pointer;
+  border-bottom: 1px solid #2a2a2a;
+  font-size: 13px;
+  color: #ccc;
+  text-align: left;
+  transition: background 0.2s;
+}
+
+.autocomplete-list li:hover {
+  background-color: #333;
+  color: #fff;
+}
+
+.autocomplete-list li:last-child {
+  border-bottom: none;
+}
+
+body.light-mode .autocomplete-list {
+  background-color: #fff;
+  border: 1px solid #ccc;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+body.light-mode .autocomplete-list li {
+  border-bottom: 1px solid #eee;
+  color: #333;
+}
+
+body.light-mode .autocomplete-list li:hover {
+  background-color: #f0f0f0;
+  color: #000;
+}
+
+/* User Location Badge */
+.location-badge {
+  font-size: 15px;
+  font-weight: 600;
+  color: #eef1f3;
+  background: #00bfff;
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1px solid rgba(0, 255, 136, 0.3);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  animation: fadeIn 1s ease-in-out;
+}
+
+body.light-mode .location-badge {
+  color: #006633;
+  background: rgba(0, 255, 136, 0.2);
+  border: 1px solid rgba(0, 255, 136, 0.6);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

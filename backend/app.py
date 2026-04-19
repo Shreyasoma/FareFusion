@@ -1,166 +1,374 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, redirect, session
 import requests
+from sqlalchemy import func
+
+# DB imports
+from db import SessionLocal
+from models import Platform, Route, FarePrediction, User
 
 app = Flask(__name__)
+app.secret_key = "super_secret_key" 
 
-auto_services = [
-    {"name": "Uber Auto", "base": 30, "rate": 10, "eta": 5, "rating": 4.5},
-    {"name": "Ola Auto", "base": 25, "rate": 11, "eta": 8, "rating": 4.2},
-    {"name": "Rapido Auto", "base": 28, "rate": 10.5, "eta": 6, "rating": 4.3}
-]
 
-cab_services = [
-    {"name": "Uber Go", "base": 50, "rate": 15, "eta": 6, "rating": 4.6},
-    {"name": "Ola Mini", "base": 45, "rate": 16, "eta": 9, "rating": 4.4},
-    {"name": "Rapido Cab", "base": 48, "rate": 15.5, "eta": 7, "rating": 4.3}
-]
-
-bike_services = [
-    {"name": "Rapido Bike", "base": 20, "rate": 7, "eta": 4, "rating": 4.5},
-    {"name": "Uber Moto", "base": 22, "rate": 7.5, "eta": 3, "rating": 4.6},
-    {"name": "Ola Bike", "base": 18, "rate": 8, "eta": 7, "rating": 4.2}
-]
+# ------------------ AUTH FLOW ------------------
 
 @app.route("/")
+def root():
+    if "user_id" in session:
+        if session.get("is_admin"):
+            return redirect("/admin-dashboard")
+        else:
+            return redirect("/home")
+    return redirect("/login")
+
+
+@app.route("/home")
 def home():
+    if "user_id" not in session:
+        return redirect("/login")
     return render_template("index.html")
 
 
+@app.route("/register", methods=["GET", "POST"])
+def register():
+    if request.method == "POST":
+        db = SessionLocal()
+
+        user = User(
+            name=request.form["name"],
+            email=request.form["email"],
+            password=request.form["password"],
+            is_admin=False
+        )
+
+        db.add(user)
+        db.commit()
+        db.close()
+
+        return redirect("/login")
+
+    return render_template("register.html")
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        db = SessionLocal()
+
+        user = db.query(User).filter(
+            User.email == request.form["email"],
+            User.password == request.form["password"]
+        ).first()
+
+        db.close()
+
+        if user:
+            session["user_id"] = user.user_id
+            session["is_admin"] = user.is_admin
+            session["user_email"] = user.email
+
+            if user.is_admin:
+                return redirect("/admin-dashboard")
+            return redirect("/home")
+
+        return "Invalid credentials"
+
+    return render_template("login.html")
+
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect("/login")
+
+
+# ------------------ ADMIN ------------------
+
+@app.route("/admin-dashboard")
+def admin_dashboard():
+    if not session.get("is_admin"):
+        return redirect("/login")
+
+    db = SessionLocal()
+
+    # Total stats
+    total_routes = db.query(Route).count()
+    total_predictions = db.query(FarePrediction).count()
+
+    # 🔥 Ride Type Data
+    ride_data = db.query(
+        FarePrediction.ride_type,
+        func.count(FarePrediction.prediction_id)
+    ).group_by(FarePrediction.ride_type).all()
+
+    ride_labels = [r[0] for r in ride_data]
+    ride_values = [r[1] for r in ride_data]
+
+    # 🔥 Platform Data
+    platform_data = db.query(
+        Platform.platform_name,
+        func.count(FarePrediction.prediction_id)
+    ).join(FarePrediction).group_by(Platform.platform_name).all()
+
+    platform_labels = [p[0] for p in platform_data]
+    platform_values = [p[1] for p in platform_data]
+
+    # 🔥 Insights
+    if ride_values:
+        top_ride_type = ride_labels[ride_values.index(max(ride_values))]
+    else:
+        top_ride_type = "N/A"
+
+    if platform_values:
+        top_platform = platform_labels[platform_values.index(max(platform_values))]
+    else:
+        top_platform = "N/A"
+
+    avg_fare = db.query(func.avg(FarePrediction.predicted_fare)).scalar()
+    avg_fare = round(float(avg_fare), 2) if avg_fare else 0
+
+    db.close()
+
+    return render_template(
+        "admin_dashboard.html",
+        total_routes=total_routes,
+        total_predictions=total_predictions,
+        ride_labels=ride_labels,
+        ride_values=ride_values,
+        platform_labels=platform_labels,
+        platform_values=platform_values,
+        top_ride_type=top_ride_type,
+        top_platform=top_platform,
+        avg_fare=avg_fare
+    )
+
+
+# ------------------ MAIN APP ------------------
+
 @app.route("/compare", methods=["POST"])
 def compare():
+    if "user_id" not in session:
+        return redirect("/login")
 
     source = request.form["source"]
     destination = request.form["destination"]
 
-    print("Source:", source)
-    print("Destination:", destination)
-
-    # Get coordinates
     lat1, lon1 = get_coordinates(source)
     lat2, lon2 = get_coordinates(destination)
 
-    # Check if coordinates were found
     if lat1 is None or lat2 is None:
-        return "Location not found. Please try another place."
+        return "Location not found."
 
-    # Calculate distance
     distance = get_distance(lat1, lon1, lat2, lon2)
 
     if distance is None:
-        return "Could not calculate distance."
+        return "Distance error."
 
-    print("Distance:", distance, "km")
     ride_type = request.form["ride_type"]
 
-    if ride_type == "auto":
-        services = auto_services
-    elif ride_type == "cab":
-        services = cab_services
-    else:
-        services = bike_services
-
+    services = get_services_from_db(ride_type)
     rides = predict_fares(distance, services)
 
     best_ride = select_best_ride(rides)
 
+    # 🔥 best ride first
+    rides = sorted(rides, key=lambda x: x["name"] != best_ride["name"])
+
+    # 🔥 save to DB
+    route_id = save_route(lat1, lon1, lat2, lon2, source, destination, distance)
+
+    if route_id:
+        save_predictions(route_id, rides, ride_type)
+
     return render_template(
-    "results.html",
-    source=source,
-    destination=destination,
-    distance=round(distance,2),
-    rides=rides,
-    best_ride=best_ride
-)
+        "results.html",
+        source=source,
+        destination=destination,
+        distance=round(distance, 2),
+        rides=rides,
+        best_ride=best_ride
+    )
 
-def get_coordinates(place):
 
-    url = "https://nominatim.openstreetmap.org/search"
+@app.route("/history")
+def history():
+    if "user_id" not in session:
+        return redirect("/login")
 
-    params = {
-        "q": place,
-        "format": "json"
-    }
+    db = SessionLocal()
 
-    headers = {
-        "User-Agent": "FareFusion-App"
-    }
+    routes = db.query(Route).order_by(Route.route_id.desc()).all()
+    history_data = []
 
+    for route in routes:
+        predictions = db.query(FarePrediction).filter(
+            FarePrediction.route_id == route.route_id
+        ).all()
+
+        if not predictions:
+            continue
+
+        best = None
+        best_score = float("inf")
+
+        for p in predictions:
+            platform = db.query(Platform).filter(
+                Platform.platform_id == p.platform_id
+            ).first()
+
+            score = (0.5 * float(p.predicted_fare)) + \
+                    (0.3 * platform.typical_wait_time) - \
+                    (5 * float(platform.avg_rating))
+
+            if score < best_score:
+                best_score = score
+                best = {
+                    "platform": platform.platform_name,
+                    "fare": float(p.predicted_fare)
+                }
+
+        history_data.append({
+            "source": route.src_address,
+            "destination": route.dest_address,
+            "distance": float(route.distance_km),
+            "best_platform": best["platform"],
+            "best_fare": best["fare"]
+        })
+
+    db.close()
+
+    return render_template("history.html", history=history_data)
+
+
+# ------------------ DB FUNCTIONS ------------------
+
+def get_services_from_db(ride_type):
+    db = SessionLocal()
+
+    if ride_type == "auto":
+        services = db.query(Platform).filter(
+            Platform.platform_name.ilike("%Auto%")
+        ).all()
+
+    elif ride_type == "bike":
+        services = db.query(Platform).filter(
+            Platform.platform_name.ilike("%Bike%")
+        ).all()
+
+    else:
+        services = db.query(Platform).filter(
+            ~Platform.platform_name.ilike("%Auto%"),
+            ~Platform.platform_name.ilike("%Bike%")
+        ).all()
+
+    db.close()
+
+    return [{
+        "name": s.platform_name,
+        "base": float(s.base_fare),
+        "rate": float(s.per_km_rate),
+        "eta": s.typical_wait_time,
+        "rating": float(s.avg_rating)
+    } for s in services]
+
+
+def save_route(lat1, lon1, lat2, lon2, source, destination, distance):
     try:
-        response = requests.get(url, params=params, headers=headers)
+        db = SessionLocal()
 
-        # Check if request worked
-        if response.status_code != 200:
-            print("Geocoding API error:", response.status_code)
-            return None, None
+        route = Route(
+            src_latitude=lat1,
+            src_longitude=lon1,
+            dest_latitude=lat2,
+            dest_longitude=lon2,
+            src_address=source,
+            dest_address=destination,
+            distance_km=distance
+        )
 
-        data = response.json()
+        db.add(route)
+        db.commit()
+        db.refresh(route)
 
-        if len(data) == 0:
-            print("No location found for:", place)
-            return None, None
-
-        lat = float(data[0]["lat"])
-        lon = float(data[0]["lon"])
-
-        return lat, lon
+        route_id = route.route_id
+        db.close()
+        return route_id
 
     except Exception as e:
-        print("Geocoding error:", e)
+        print(e)
+        return None
+
+
+def save_predictions(route_id, rides, ride_type):
+    db = SessionLocal()
+
+    for ride in rides:
+        platform = db.query(Platform).filter(
+            Platform.platform_name == ride["name"]
+        ).first()
+
+        if platform:
+            db.add(FarePrediction(
+                route_id=route_id,
+                platform_id=platform.platform_id,
+                predicted_fare=ride["fare"],
+                surge_applied=1.0,
+                ride_type=ride_type
+            ))
+
+    db.commit()
+    db.close()
+
+
+# ------------------ APIs ------------------
+
+def get_coordinates(place):
+    try:
+        res = requests.get(
+            "https://nominatim.openstreetmap.org/search",
+            params={"q": place, "format": "json"},
+            headers={"User-Agent": "FareFusion"}
+        )
+
+        data = res.json()
+        if not data:
+            return None, None
+
+        return float(data[0]["lat"]), float(data[0]["lon"])
+
+    except:
         return None, None
 
 
 def get_distance(lat1, lon1, lat2, lon2):
-
-    url = f"http://router.project-osrm.org/route/v1/driving/{lon1},{lat1};{lon2},{lat2}?overview=false"
-
     try:
-        response = requests.get(url)
+        url = f"http://router.project-osrm.org/route/v1/driving/{lon1},{lat1};{lon2},{lat2}?overview=false"
+        res = requests.get(url)
+        data = res.json()
 
-        if response.status_code != 200:
-            print("Distance API error:", response.status_code)
-            return None
+        return data["routes"][0]["distance"] / 1000
 
-        data = response.json()
-
-        distance = data["routes"][0]["distance"]
-
-        return distance / 1000
-
-    except Exception as e:
-        print("Distance calculation error:", e)
+    except:
         return None
 
+
+# ------------------ LOGIC ------------------
+
 def predict_fares(distance, services):
+    return [{
+        "name": s["name"],
+        "fare": round(s["base"] + distance * s["rate"], 2),
+        "eta": s["eta"],
+        "rating": s["rating"]
+    } for s in services]
 
-    results = []
-
-    for service in services:
-
-        fare = service["base"] + (distance * service["rate"])
-
-        results.append({
-            "name": service["name"],
-            "fare": round(fare, 2),
-            "eta": service["eta"],
-            "rating": service["rating"]
-        })
-
-    return results
 
 def select_best_ride(rides):
+    return min(
+        rides,
+        key=lambda r: (0.5*r["fare"] + 0.3*r["eta"] - 5*r["rating"])
+    )
 
-    best = None
-    best_score = float("inf")
-
-    for ride in rides:
-
-        score = (0.5 * ride["fare"]) + (0.3 * ride["eta"]) - (5 * ride["rating"])
-
-        if score < best_score:
-            best_score = score
-            best = ride
-
-    return best
 
 if __name__ == "__main__":
     app.run(debug=True)

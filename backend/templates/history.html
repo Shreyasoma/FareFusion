@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>FareFusion History</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
+</head>
+
+<body>
+  <header>
+    <a href="/" style="text-decoration: none; color: inherit;">
+      <h1 id="logo">
+        FareFusion</h1>
+    </a>
+  </header>
+
+  <main class="results-container">
+    <h2 class="results-title">Previous Searches</h2>
+
+    <div class="ride-results" style="flex-direction: column; gap: 15px">
+      {% for item in history %}
+
+      <div class="ride-result-card" style="width: 350px">
+        <p><b>{{ item.source }}</b> → <b>{{ item.destination }}</b></p>
+        <p>Distance: {{ item.distance }} km</p>
+        <p>Best Ride: {{ item.best_platform }}</p>
+        <p>Fare: ₹{{ item.best_fare }}</p>
+      </div>
+
+      {% endfor %}
+    </div>
+
+    <a href="/" class="back-btn">Back</a>
+  </main>
+
+  <footer class="footer">© 2026 FareFusion</footer>
+</body>
+
+</html>

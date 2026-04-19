@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Login - FareFusion</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Poppins:wght@100;400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="shortcut icon"
+      href="{{ url_for('static', filename='assets/logo.jpg') }}"
+      type="image/x-icon"
+    />
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/styles.css') }}"
+    />
+  </head>
+
+  <body>
+    <header>
+      <a href="/" style="text-decoration: none; color: inherit;"><h1 id="logo">FareFusion</h1></a>
+      <div class="header-actions">
+        <div class="theme-toggle" id="themeToggle">🌙</div>
+      </div>
+    </header>
+
+    <main>
+      <h2 class="section-title">Login to Your Account</h2>
+
+      <form
+        method="POST"
+        style="display: flex; flex-direction: column; align-items: center"
+      >
+        <input
+          type="email"
+          name="email"
+          placeholder="Enter your email"
+          required
+        />
+
+        <input
+          type="password"
+          name="password"
+          placeholder="Enter password"
+          required
+        />
+
+        <button type="submit">Login</button>
+      </form>
+
+      <p style="margin-top: 15px">
+        Don’t have an account?
+        <a href="/register" style="color: #00bfff">Register</a>
+      </p>
+    </main>
+
+    <footer class="footer">© 2026 FareFusion</footer>
+
+    <script src="{{ url_for('static', filename='js/index.js') }}"></script>
+  </body>
+</html>
